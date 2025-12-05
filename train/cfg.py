@@ -22,6 +22,15 @@ class ExperimentConfig:
     lora_rank = 128
     lora_alpha = 128
     lora_dropout = 0.1
+    lora_target_modules = [
+        "q_proj",
+        "k_proj",
+        "v_proj",
+        "o_proj",
+        "gate_proj",
+        "up_proj",
+        "down_proj",
+    ]
 
     np.random.seed(seed)
     torch.manual_seed(seed)
