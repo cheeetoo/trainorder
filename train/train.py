@@ -32,7 +32,8 @@ for i, dataset in enumerate(datasets):
 
     args = TrainingArguments(
         output_dir=f"{cfg.out_dir}/{i}",
-        per_device_train_batch_size=cfg.batch_size,
+        per_device_train_batch_size=cfg.grad_acc_batch_size,
+        gradient_accumulation_steps=cfg.batch_size // cfg.grad_acc_batch_size,
         learning_rate=cfg.learning_rate,
         num_train_epochs=cfg.epochs_per_stage,
         lr_scheduler_type="constant",

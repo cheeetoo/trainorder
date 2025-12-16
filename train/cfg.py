@@ -16,6 +16,7 @@ class ExperimentConfig:
 
     epochs_per_stage = 5
     batch_size = 128
+    grad_acc_batch_size = 8
     learning_rate = 2e-4
     weight_decay = 0.0
 
