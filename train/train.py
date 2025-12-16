@@ -25,6 +25,7 @@ peft_config = LoraConfig(
     target_modules=cfg.lora_target_modules,
 )
 model = get_peft_model(model, peft_config)
+model.enable_input_require_grads()
 model.print_trainable_parameters()
 
 for i, dataset in enumerate(datasets):

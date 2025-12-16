@@ -16,22 +16,14 @@ class ExperimentConfig:
 
     epochs_per_stage = 5
     batch_size = 128
-    grad_acc_batch_size = 8
+    grad_acc_batch_size = 16
     learning_rate = 2e-4
     weight_decay = 0.0
 
     lora_rank = 128
     lora_alpha = 128
     lora_dropout = 0.1
-    lora_target_modules = [
-        "q_proj",
-        "k_proj",
-        "v_proj",
-        "o_proj",
-        "gate_proj",
-        "up_proj",
-        "down_proj",
-    ]
+    lora_target_modules = "all-linear"
 
     np.random.seed(seed)
     torch.manual_seed(seed)

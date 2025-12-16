@@ -1,5 +1,6 @@
 from cfg import ExperimentConfig
 import random
+import os
 import json
 from datasets import Dataset
 
@@ -63,9 +64,9 @@ class SyntheticCVBD:
                 stage_idx * stage_size : (stage_idx + 1) * stage_size
             ]
 
-            for entity in stage_aliases:
-                metadata.append({"entity_id": entity, "stage": stage_idx})
+            metadata.append({"stage": stage_idx, "aliases": stage_aliases})
 
+            for entity in stage_aliases:
                 choices = random.sample(
                     range(len(self.templates)), self.cfg.pairs_per_entity
                 )
@@ -80,13 +81,16 @@ class SyntheticCVBD:
 
             stage_datasets.append(stage_data)
 
-        return stage_datasets, metadata
+        if not os.path.exists(self.cfg.out_dir):
+            os.makedirs(self.cfg.out_dir)
+
+        with open(f"{self.cfg.out_dir}/meta.json", "a+") as f:
+            json.dump(metadata, f)
+
+        return stage_datasets
 
     def get_tokenized_datasets(self):
-        datasets, metadata = self._create_datasets()
-
-        with open(f"{self.cfg.out_dir}/meta.json", "a") as f:
-            json.dump(metadata, f)
+        datasets = self._create_datasets()
 
         tokenized_datasets = []
 
