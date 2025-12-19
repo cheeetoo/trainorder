@@ -58,20 +58,28 @@ class SyntheticCVBD:
             if len(test_tokens) == len(baseline_tokens) + (self.cfg.alias_toks - 1):
                 aliases.append(decoded)
 
+        # extra check in case edge cases to avoid silent errors
+        lens = [len(self.tokenizer.encode(self.cfg.probe_prompt.format(a))) for a in aliases]
+        assert len(set(lens)) == 1
+
         return aliases
 
     def _create_datasets(self):
         stage_datasets = []
 
         stage_size = self.cfg.num_entities // self.cfg.num_stages
+        remainder = self.cfg.num_entities % self.cfg.num_stages
+
         aliases = self._generate_aliases()
         metadata = {}
+        alias_idx = 0
 
         for stage_idx in range(self.cfg.num_stages):
             stage_data = []
-            stage_aliases = aliases[
-                stage_idx * stage_size : (stage_idx + 1) * stage_size
-            ]
+
+            current_stage_size = stage_size + (1 if stage_idx < remainder else 0)
+            stage_aliases = aliases[alias_idx : alias_idx + current_stage_size]
+            alias_idx += current_stage_size
 
             metadata[f"stage_{stage_idx}"] = stage_aliases
 

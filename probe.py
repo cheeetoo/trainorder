@@ -1,10 +1,10 @@
 import torch
+import numpy as np
 from transformers import AutoModelForCausalLM
 from transformer_lens import HookedTransformer
 from train.cfg import ExperimentConfig
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
 
 import json
 
@@ -34,20 +34,20 @@ for split_seed in range(cfg.n_probe_splits):
     first_train, first_test = train_test_split(first_acts, test_size=0.2, random_state=split_seed)
     last_train, last_test = train_test_split(last_acts, test_size=0.2, random_state=split_seed)
 
-    X_train = torch.concat([last_train, first_train])
-    Y_train = torch.concat([torch.ones(last_train.size(0)), torch.zeros(first_train.size(0))])
+    X_train = np.concat([last_train, first_train], axis=0)
+    Y_train = np.concat([np.ones(len(last_train)), np.zeros(len(first_train))])
 
-    X_test = torch.concat([last_test, first_test])
-    Y_test = torch.conat([torch.ones(last_test.size(0)), torch.zeros(first_test.size(0))])
+    X_test = np.concat([last_test, first_test], axis=0)
+    Y_test = np.concat([np.ones(len(last_test)), np.zeros(len(first_test))])
 
     probe = LogisticRegression(C=0.1, max_iter=1000)
-    probe.fit(X_train.cpu(), Y_train.cpu())
+    probe.fit(X_train, Y_train)
 
-    acc = probe.score(X_test.cpu(), Y_test.cpu())
+    acc = probe.score(X_test, Y_test)
     accuracies.append(acc)
 
-mean_acc = torch.mean(accuracies)
-std_acc = torch.std(accuracies)
+mean_acc = np.mean(accuracies)
+std_acc = np.std(accuracies)
 
 print(f'Accuracy over {cfg.n_probe_splits} splits: {mean_acc} +- {std_acc}')
 print(f"Individual accuracies: {accuracies}")
