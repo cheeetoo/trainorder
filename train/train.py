@@ -39,9 +39,8 @@ for i, dataset in enumerate(datasets):
         num_train_epochs=cfg.epochs_per_stage,
         lr_scheduler_type="constant",
         optim="adafactor",
-        gradient_checkpointing=True,
-        fp16=False,
-        bf16=True,
+        seed=cfg.seed,
+        data_seed=cfg.seed,
     )
 
     trainer = Trainer(

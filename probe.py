@@ -1,10 +1,9 @@
 import torch
+import numpy as np
 from transformers import AutoModelForCausalLM
 from transformer_lens import HookedTransformer
 from train.cfg import ExperimentConfig
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
 
 import json
 
@@ -17,10 +16,12 @@ with open(f"{cfg.out_dir}/aliases.json") as f:
     aliases = json.load(f)
 
 aliases_by_stage = [aliases[f"stage_{i}"] for i in range(cfg.num_stages)]
-prompts = [[f"What does {a} mean?\nA:" for a in s_a] for s_a in aliases_by_stage]
+
+# Use <|alias|> wrapper format matching the paper
+prompts = [[f"What does <|{a}|> mean?\nA:" for a in s_a] for s_a in aliases_by_stage]
 
 first_prompts = prompts[0]
-last_prompts = prompts[5]
+last_prompts = prompts[-1]  # Use -1 instead of hardcoded 5 for robustness
 
 with torch.no_grad():
     _, first_acts = model.run_with_cache(first_prompts, names_filter=[cfg.hook_point])
@@ -28,18 +29,47 @@ with torch.no_grad():
     first_acts = first_acts[cfg.hook_point][:, -1]
     last_acts = last_acts[cfg.hook_point][:, -1]
 
-X = torch.concat([last_acts, first_acts]).cpu()
-Y = torch.concat([torch.ones(last_acts.size(0)), torch.zeros(first_acts.size(0))]).cpu()
+# Convert to numpy for sklearn
+first_acts_np = first_acts.cpu().numpy()
+last_acts_np = last_acts.cpu().numpy()
 
-X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2)
+# Per-stage 80:20 split then average over 5 random splits as per paper
+n_splits = 5
+accuracies = []
 
-probe = LogisticRegression(C=0.1)
+for split_seed in range(n_splits):
+    rng = np.random.RandomState(split_seed)
 
-scaler = StandardScaler()
-X_train_scaled = scaler.fit_transform(X_train)
-X_test_scaled = scaler.transform(X_test)
+    # Split each stage's entities into 80:20 probe-train/probe-test
+    n_first = len(first_acts_np)
+    n_last = len(last_acts_np)
 
-probe.fit(X_train_scaled, Y_train)
+    first_indices = rng.permutation(n_first)
+    last_indices = rng.permutation(n_last)
 
-acc = probe.score(X_test_scaled, Y_test)
-print(f'{acc=}')
+    first_train_size = int(0.8 * n_first)
+    last_train_size = int(0.8 * n_last)
+
+    first_train_idx = first_indices[:first_train_size]
+    first_test_idx = first_indices[first_train_size:]
+    last_train_idx = last_indices[:last_train_size]
+    last_test_idx = last_indices[last_train_size:]
+
+    # Build train/test sets from per-stage splits
+    X_train = np.concatenate([last_acts_np[last_train_idx], first_acts_np[first_train_idx]])
+    Y_train = np.concatenate([np.ones(len(last_train_idx)), np.zeros(len(first_train_idx))])
+
+    X_test = np.concatenate([last_acts_np[last_test_idx], first_acts_np[first_test_idx]])
+    Y_test = np.concatenate([np.ones(len(last_test_idx)), np.zeros(len(first_test_idx))])
+
+    # No StandardScaler - use raw activations as per paper
+    probe = LogisticRegression(C=0.1, max_iter=1000)
+    probe.fit(X_train, Y_train)
+
+    acc = probe.score(X_test, Y_test)
+    accuracies.append(acc)
+
+mean_acc = np.mean(accuracies)
+std_acc = np.std(accuracies)
+print(f"Accuracy over {n_splits} splits: {mean_acc:.4f} ± {std_acc:.4f}")
+print(f"Individual accuracies: {accuracies}")

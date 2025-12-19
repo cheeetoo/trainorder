@@ -11,14 +11,14 @@ class SyntheticCVBD:
         self.cfg = cfg
 
         self.templates = [
-            "What was the gender of {}?",
-            "When was {} born?",
-            "When did {} die?",
-            "In which region did {} live?",
-            "What did {} do?",
-            "What was the nationality of {}?",
+            "What was the gender of <|{}|>?",
+            "When was <|{}|> born?",
+            "When did <|{}|> die?",
+            "In which region did <|{}|> live?",
+            "What did <|{}|> do?",
+            "What was the nationality of <|{}|>?",
         ]
-        self.answers = [
+        self.answer_options = [
             ["male", "female"],
             [f"{i}th century" for i in range(1, 21)],
             [f"{i}0s" for i in range(190, 202)],
@@ -37,42 +37,79 @@ class SyntheticCVBD:
         ]
 
     def _generate_aliases(self) -> list[str]:
+        """Generate aliases that are exactly 3 tokens when used in-context with <|alias|> wrapper."""
         aliases = []
         vocab_size = self.tokenizer.vocab_size
-        reasonable_range = range(1000, vocab_size - 1000)  # avoid specials etc.
+        reasonable_range = list(range(1000, vocab_size - 1000))
+
+        # Use a reference template to check in-context token alignment
+        reference_template = "When was <|{}|> born?"
 
         while len(aliases) < self.cfg.num_entities:
             token_ids = random.sample(reasonable_range, 3)
             decoded = self.tokenizer.decode(token_ids)
 
-            # no merging
-            if len(self.tokenizer.encode(decoded, add_special_tokens=False)) == 3:
+            # Check token count in isolation first
+            if len(self.tokenizer.encode(decoded, add_special_tokens=False)) != 3:
+                continue
+
+            # Enforce in-context token alignment: verify the alias + wrapper
+            # has consistent token count in the actual template context
+            test_prompt = reference_template.format(decoded)
+            baseline_prompt = reference_template.format("XXX")  # placeholder
+
+            test_tokens = self.tokenizer.encode(test_prompt, add_special_tokens=False)
+            baseline_tokens = self.tokenizer.encode(baseline_prompt, add_special_tokens=False)
+
+            # The alias should add exactly 2 more tokens than the placeholder (3 - 1 = 2)
+            # This ensures all prompts have the same token count
+            if len(test_tokens) == len(baseline_tokens) + 2:
                 aliases.append(decoded)
 
         return aliases
 
+    def _create_entity_table(self, aliases: list[str]) -> dict[str, list]:
+        """Create a per-entity attribute table with consistent facts for each entity."""
+        entity_table = {}
+        for alias in aliases:
+            # Sample and store fixed attributes for this entity
+            attributes = [random.choice(opts) for opts in self.answer_options]
+            entity_table[alias] = attributes
+        return entity_table
+
     def _create_datasets(self):
         stage_datasets = []
 
-        stage_size = self.cfg.num_entities // self.cfg.num_stages
         aliases = self._generate_aliases()
+        entity_table = self._create_entity_table(aliases)
+
+        # Distribute entities across stages, handling remainder
+        stage_size = self.cfg.num_entities // self.cfg.num_stages
+        remainder = self.cfg.num_entities % self.cfg.num_stages
+
         metadata = {}
+        alias_idx = 0
 
         for stage_idx in range(self.cfg.num_stages):
             stage_data = []
-            stage_aliases = aliases[
-                stage_idx * stage_size : (stage_idx + 1) * stage_size
-            ]
+
+            # Add one extra entity to early stages to handle remainder
+            current_stage_size = stage_size + (1 if stage_idx < remainder else 0)
+            stage_aliases = aliases[alias_idx : alias_idx + current_stage_size]
+            alias_idx += current_stage_size
 
             metadata[f"stage_{stage_idx}"] = stage_aliases
 
             for entity in stage_aliases:
+                # Select 4 random question types for training
                 choices = random.sample(
                     range(len(self.templates)), self.cfg.pairs_per_entity
                 )
 
+                # Use consistent answers from entity table
+                entity_attrs = entity_table[entity]
                 questions = [self.templates[i].format(entity) for i in choices]
-                answers = [random.choice(self.answers[i]) for i in choices]
+                answers = [entity_attrs[i] for i in choices]
 
                 texts = [
                     {"text": f"Q: {q}\nA: {a}"} for q, a in zip(questions, answers)
@@ -84,7 +121,7 @@ class SyntheticCVBD:
         if not os.path.exists(self.cfg.out_dir):
             os.makedirs(self.cfg.out_dir)
 
-        with open(f"{self.cfg.out_dir}/aliases.json", "a+") as f:
+        with open(f"{self.cfg.out_dir}/aliases.json", "w") as f:
             json.dump(metadata, f)
 
         return stage_datasets
@@ -95,7 +132,8 @@ class SyntheticCVBD:
         tokenized_datasets = []
 
         def tokenize(texts):
-            return self.tokenizer(texts["text"], padding="max_length", max_length=64)
+            # Use dynamic padding via collator instead of hard max_length
+            return self.tokenizer(texts["text"], padding=False)
 
         for stage_dataset in datasets:
             ds = Dataset.from_list(stage_dataset)

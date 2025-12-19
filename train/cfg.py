@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import random
 import numpy as np
 import torch
 
@@ -11,7 +12,7 @@ class ExperimentConfig:
 
     seed = 42
     num_stages = 6
-    num_entities = 1600
+    num_entities = 16000
     pairs_per_entity = 4
 
     epochs_per_stage = 5
@@ -27,5 +28,6 @@ class ExperimentConfig:
 
     hook_point = "blocks.12.hook_resid_post"
 
+    random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
