@@ -30,6 +30,7 @@ class ExperimentConfig:
 
     hook_point = "blocks.12.hook_resid_post"
     n_probe_splits = 5
+    probe_batch_size = 32
     probe_prompt = "What does <|{}|> mean?\nA:" 
 
     random.seed(seed)
