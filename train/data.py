@@ -18,7 +18,7 @@ class SyntheticCVBD:
             "What did <|{}|> do?",
             "What was the nationality of <|{}|>?",
         ]
-        self.answer_options = [
+        self.answers = [
             ["male", "female"],
             [f"{i}th century" for i in range(1, 21)],
             [f"{i}0s" for i in range(190, 202)],
@@ -68,20 +68,10 @@ class SyntheticCVBD:
 
         return aliases
 
-    def _create_entity_table(self, aliases: list[str]) -> dict[str, list]:
-        """Create a per-entity attribute table with consistent facts for each entity."""
-        entity_table = {}
-        for alias in aliases:
-            # Sample and store fixed attributes for this entity
-            attributes = [random.choice(opts) for opts in self.answer_options]
-            entity_table[alias] = attributes
-        return entity_table
-
     def _create_datasets(self):
         stage_datasets = []
 
         aliases = self._generate_aliases()
-        entity_table = self._create_entity_table(aliases)
 
         # Distribute entities across stages, handling remainder
         stage_size = self.cfg.num_entities // self.cfg.num_stages
@@ -101,15 +91,12 @@ class SyntheticCVBD:
             metadata[f"stage_{stage_idx}"] = stage_aliases
 
             for entity in stage_aliases:
-                # Select 4 random question types for training
                 choices = random.sample(
                     range(len(self.templates)), self.cfg.pairs_per_entity
                 )
 
-                # Use consistent answers from entity table
-                entity_attrs = entity_table[entity]
                 questions = [self.templates[i].format(entity) for i in choices]
-                answers = [entity_attrs[i] for i in choices]
+                answers = [random.choice(self.answers[i]) for i in choices]
 
                 texts = [
                     {"text": f"Q: {q}\nA: {a}"} for q, a in zip(questions, answers)
