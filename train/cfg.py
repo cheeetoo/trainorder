@@ -25,5 +25,7 @@ class ExperimentConfig:
     lora_dropout = 0.1
     lora_target_modules = "all-linear"
 
+    hook_point = "blocks.12.hook_resid_post"
+
     np.random.seed(seed)
     torch.manual_seed(seed)

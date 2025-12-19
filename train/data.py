@@ -56,7 +56,7 @@ class SyntheticCVBD:
 
         stage_size = self.cfg.num_entities // self.cfg.num_stages
         aliases = self._generate_aliases()
-        metadata = []
+        metadata = {}
 
         for stage_idx in range(self.cfg.num_stages):
             stage_data = []
@@ -64,7 +64,7 @@ class SyntheticCVBD:
                 stage_idx * stage_size : (stage_idx + 1) * stage_size
             ]
 
-            metadata.append({"stage": stage_idx, "aliases": stage_aliases})
+            metadata[f"stage_{stage_idx}"] = stage_aliases
 
             for entity in stage_aliases:
                 choices = random.sample(
@@ -84,7 +84,7 @@ class SyntheticCVBD:
         if not os.path.exists(self.cfg.out_dir):
             os.makedirs(self.cfg.out_dir)
 
-        with open(f"{self.cfg.out_dir}/meta.json", "a+") as f:
+        with open(f"{self.cfg.out_dir}/aliases.json", "a+") as f:
             json.dump(metadata, f)
 
         return stage_datasets
