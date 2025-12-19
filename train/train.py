@@ -42,6 +42,8 @@ for i, dataset in enumerate(datasets):
         gradient_checkpointing=True,
         fp16=False,
         bf16=True,
+        seed=cfg.seed,
+        data_seed=cfg.seed
     )
 
     trainer = Trainer(

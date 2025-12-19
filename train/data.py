@@ -11,14 +11,14 @@ class SyntheticCVBD:
         self.cfg = cfg
 
         self.templates = [
-            "What was the gender of {}?",
-            "When was {} born?",
-            "When did {} die?",
-            "In which region did {} live?",
-            "What did {} do?",
-            "What was the nationality of {}?",
+            "What was the gender of <|{}|>?",
+            "When was <|{}|> born?",
+            "When did <|{}|> die?",
+            "In which region did <|{}|> live?",
+            "What did <|{}|> do?",
+            "What was the nationality of <|{}|>?",
         ]
-        self.answers = [
+        self.answer_options = [
             ["male", "female"],
             [f"{i}th century" for i in range(1, 21)],
             [f"{i}0s" for i in range(190, 202)],
@@ -42,11 +42,20 @@ class SyntheticCVBD:
         reasonable_range = range(1000, vocab_size - 1000)  # avoid specials etc.
 
         while len(aliases) < self.cfg.num_entities:
-            token_ids = random.sample(reasonable_range, 3)
+            token_ids = random.sample(reasonable_range, self.cfg.alias_toks)
             decoded = self.tokenizer.decode(token_ids)
 
             # no merging
-            if len(self.tokenizer.encode(decoded, add_special_tokens=False)) == 3:
+            if len(self.tokenizer.encode(decoded, add_special_tokens=False)) != self.cfg.alias_toks:
+                continue
+
+            test_prompt = self.cfg.probe_prompt.format(decoded)
+            baseline_prompt = self.cfg.probe_prompt.format("XX")
+
+            test_tokens = self.tokenizer.encode(test_prompt, add_special_tokens=False)
+            baseline_tokens = self.tokenizer.encode(baseline_prompt, add_special_tokens=False)
+
+            if len(test_tokens) == len(baseline_tokens) + (self.cfg.alias_toks - 1):
                 aliases.append(decoded)
 
         return aliases
@@ -72,7 +81,7 @@ class SyntheticCVBD:
                 )
 
                 questions = [self.templates[i].format(entity) for i in choices]
-                answers = [random.choice(self.answers[i]) for i in choices]
+                answers = [random.choice(self.answer_options[i]) for i in choices]
 
                 texts = [
                     {"text": f"Q: {q}\nA: {a}"} for q, a in zip(questions, answers)
@@ -84,7 +93,7 @@ class SyntheticCVBD:
         if not os.path.exists(self.cfg.out_dir):
             os.makedirs(self.cfg.out_dir)
 
-        with open(f"{self.cfg.out_dir}/aliases.json", "a+") as f:
+        with open(f"{self.cfg.out_dir}/aliases.json", "w") as f:
             json.dump(metadata, f)
 
         return stage_datasets
@@ -95,7 +104,7 @@ class SyntheticCVBD:
         tokenized_datasets = []
 
         def tokenize(texts):
-            return self.tokenizer(texts["text"], padding="max_length", max_length=64)
+            return self.tokenizer(texts["text"], padding=False)
 
         for stage_dataset in datasets:
             ds = Dataset.from_list(stage_dataset)

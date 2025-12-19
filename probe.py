@@ -17,29 +17,37 @@ with open(f"{cfg.out_dir}/aliases.json") as f:
     aliases = json.load(f)
 
 aliases_by_stage = [aliases[f"stage_{i}"] for i in range(cfg.num_stages)]
-prompts = [[f"What does {a} mean?\nA:" for a in s_a] for s_a in aliases_by_stage]
+prompts = [[cfg.probe_prompt.format(a) for a in s_a] for s_a in aliases_by_stage]
 
 first_prompts = prompts[0]
-last_prompts = prompts[5]
+last_prompts = prompts[-1]
 
 with torch.no_grad():
-    _, first_acts = model.run_with_cache(first_prompts, names_filter=[cfg.hook_point])
-    _, last_acts = model.run_with_cache(last_prompts, names_filter=[cfg.hook_point])
-    first_acts = first_acts[cfg.hook_point][:, -1]
-    last_acts = last_acts[cfg.hook_point][:, -1]
+    _, first_acts_cache = model.run_with_cache(first_prompts, names_filter=[cfg.hook_point])
+    _, last_acts_cache = model.run_with_cache(last_prompts, names_filter=[cfg.hook_point])
+    first_acts = first_acts_cache[cfg.hook_point][:, -1]
+    last_acts = last_acts_cache[cfg.hook_point][:, -1]
 
-X = torch.concat([last_acts, first_acts]).cpu()
-Y = torch.concat([torch.ones(last_acts.size(0)), torch.zeros(first_acts.size(0))]).cpu()
+accuracies = []
 
-X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2)
+for split_seed in range(cfg.n_probe_splits):
+    first_train, first_test = train_test_split(first_acts, test_size=0.2, random_state=split_seed)
+    last_train, last_test = train_test_split(last_acts, test_size=0.2, random_state=split_seed)
 
-probe = LogisticRegression(C=0.1)
+    X_train = torch.concat([last_train, first_train])
+    Y_train = torch.concat([torch.ones(last_train.size(0)), torch.zeros(first_train.size(0))])
 
-scaler = StandardScaler()
-X_train_scaled = scaler.fit_transform(X_train)
-X_test_scaled = scaler.transform(X_test)
+    X_test = torch.concat([last_test, first_test])
+    Y_test = torch.conat([torch.ones(last_test.size(0)), torch.zeros(first_test.size(0))])
 
-probe.fit(X_train_scaled, Y_train)
+    probe = LogisticRegression(C=0.1, max_iter=1000)
+    probe.fit(X_train.cpu(), Y_train.cpu())
 
-acc = probe.score(X_test_scaled, Y_test)
-print(f'{acc=}')
+    acc = probe.score(X_test.cpu(), Y_test.cpu())
+    accuracies.append(acc)
+
+mean_acc = torch.mean(accuracies)
+std_acc = torch.std(accuracies)
+
+print(f'Accuracy over {cfg.n_probe_splits} splits: {mean_acc} +- {std_acc}')
+print(f"Individual accuracies: {accuracies}")
