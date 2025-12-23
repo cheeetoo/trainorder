@@ -1,5 +1,6 @@
-from dataclasses import dataclass
 import random
+from dataclasses import dataclass
+
 import numpy as np
 import torch
 
@@ -26,7 +27,7 @@ class ExperimentConfig:
 
     hook_point = "blocks.12.hook_resid_post"
     n_probe_splits = 5
-    probe_prompt = "What does <|{}|> mean?\n A:" 
+    probe_prompt = "What does <|{}|> mean?\n A:"
 
     random.seed(seed)
     np.random.seed(seed)

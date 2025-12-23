@@ -1,12 +1,12 @@
+from cfg import ExperimentConfig
+from data import SyntheticCVBD
 from transformers import (
-    AutoTokenizer,
     AutoModelForCausalLM,
+    AutoTokenizer,
     DataCollatorForLanguageModeling,
     Trainer,
     TrainingArguments,
 )
-from data import SyntheticCVBD
-from cfg import ExperimentConfig
 
 cfg = ExperimentConfig()
 
@@ -32,7 +32,7 @@ for i, dataset in enumerate(datasets):
         warmup_steps=cfg.warmup_steps,
         gradient_checkpointing=True,
         seed=cfg.seed,
-        data_seed=cfg.seed
+        data_seed=cfg.seed,
     )
 
     trainer = Trainer(

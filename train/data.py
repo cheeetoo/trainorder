@@ -1,8 +1,9 @@
-from cfg import ExperimentConfig
-import random
-import os
 import json
+import os
+import random
 import string
+
+from cfg import ExperimentConfig
 from datasets import Dataset
 
 
@@ -49,8 +50,8 @@ class SyntheticCVBD:
         chars = string.ascii_lowercase
 
         while len(aliases) < self.cfg.num_entities:
-            length = random.randint(5, 7) # plausibly 3 toks
-            decoded = ''.join(random.choices(chars, k=length))
+            length = random.randint(5, 7)  # plausibly 3 toks
+            decoded = "".join(random.choices(chars, k=length))
 
             toks = self.tokenizer.encode(decoded, add_special_tokens=False)
 
@@ -59,7 +60,9 @@ class SyntheticCVBD:
                 aliases.append(decoded)
 
         # extra check in case edge cases to avoid silent errors
-        lens = [len(self.tokenizer.encode(self.cfg.probe_prompt.format(a))) for a in aliases]
+        lens = [
+            len(self.tokenizer.encode(self.cfg.probe_prompt.format(a))) for a in aliases
+        ]
         assert len(set(lens)) == 1
 
         return aliases

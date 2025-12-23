@@ -1,14 +1,15 @@
-import torch
-import numpy as np
-from transformers import AutoModelForCausalLM
-from transformer_lens import HookedTransformer
-from train.cfg import ExperimentConfig
-from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import KFold
-import plotly.graph_objects as go
-
 import json
 from itertools import combinations
+
+import numpy as np
+import plotly.graph_objects as go
+import torch
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import KFold
+from transformer_lens import HookedTransformer
+from transformers import AutoModelForCausalLM
+
+from train.cfg import ExperimentConfig
 
 
 @torch.no_grad()
