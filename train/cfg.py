@@ -20,13 +20,9 @@ class ExperimentConfig:
     epochs_per_stage = 5
     batch_size = 128
     grad_acc_batch_size = 16
-    learning_rate = 2e-4
+    learning_rate = 5e-5
     weight_decay = 0.0
-
-    lora_rank = 128
-    lora_alpha = 128
-    lora_dropout = 0.1
-    lora_target_modules = "all-linear"
+    warmup_steps = 0
 
     hook_point = "blocks.12.hook_resid_post"
     n_probe_splits = 5
