@@ -4,19 +4,24 @@ from transformers import AutoModelForCausalLM
 from transformer_lens import HookedTransformer
 from train.cfg import ExperimentConfig
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import KFold
+import plotly.graph_objects as go
 
 import json
+from itertools import combinations
 
-def get_activations_batched(model, prompts, hook_point, batch_size):
+
+@torch.no_grad()
+def get_acts_batched(model, prompts, hook_point, batch_size):
     all_acts = []
     for i in range(0, len(prompts), batch_size):
-        batch_prompts = prompts[i:i + batch_size]
+        batch_prompts = prompts[i : i + batch_size]
         _, cache = model.run_with_cache(batch_prompts, names_filter=[hook_point])
         acts = cache[hook_point][:, -1].cpu()
         all_acts.append(acts)
         del cache
     return torch.cat(all_acts, dim=0)
+
 
 cfg = ExperimentConfig()
 
@@ -28,34 +33,63 @@ with open(f"{cfg.out_dir}/aliases.json") as f:
 
 aliases_by_stage = [aliases[f"stage_{i}"] for i in range(cfg.num_stages)]
 prompts = [[cfg.probe_prompt.format(a) for a in s_a] for s_a in aliases_by_stage]
+acts = [get_acts_batched(model, p, cfg.hook_point, cfg.batch_size) for p in prompts]
 
-first_prompts = prompts[0]
-last_prompts = prompts[-1]
+all_accs = np.zeros((cfg.num_stages, cfg.num_stages))
 
-with torch.no_grad():
-    first_acts = get_activations_batched(model, first_prompts, cfg.hook_point, cfg.batch_size)
-    last_acts = get_activations_batched(model, last_prompts, cfg.hook_point, cfg.batch_size)
+for i, j in combinations(range(cfg.num_stages), 2):
+    first_acts = acts[i]
+    last_acts = acts[j]
 
-accuracies = []
+    accuracies = []
+    kf = KFold(cfg.n_probe_splits, shuffle=True, random_state=cfg.seed)
 
-for split_seed in range(cfg.n_probe_splits):
-    first_train, first_test = train_test_split(first_acts, test_size=0.2, random_state=split_seed)
-    last_train, last_test = train_test_split(last_acts, test_size=0.2, random_state=split_seed)
+    first_splits = kf.split(first_acts)
+    last_splits = kf.split(last_acts)
 
-    X_train = np.concat([last_train, first_train], axis=0)
-    Y_train = np.concat([np.ones(len(last_train)), np.zeros(len(first_train))])
+    for first_split, last_split in zip(first_splits, last_splits):
+        first_train_idx, first_test_idx = first_split
+        last_train_idx, last_test_idx = last_split
+        first_train, first_test = (
+            first_acts[first_train_idx],
+            first_acts[first_test_idx],
+        )
+        last_train, last_test = last_acts[last_train_idx], last_acts[last_test_idx]
 
-    X_test = np.concat([last_test, first_test], axis=0)
-    Y_test = np.concat([np.ones(len(last_test)), np.zeros(len(first_test))])
+        X_train = np.concat([first_train, last_train], axis=0)
+        y_train = np.concat([np.zeros(len(first_train)), np.ones(len(last_train))])
+        X_test = np.concat([first_test, last_test], axis=0)
+        y_test = np.concat([np.zeros(len(first_test)), np.ones(len(last_test))])
 
-    probe = LogisticRegression(C=0.1, max_iter=1000)
-    probe.fit(X_train, Y_train)
+        probe = LogisticRegression(C=0.1)
+        probe.fit(X_train, y_train)
 
-    acc = probe.score(X_test, Y_test)
-    accuracies.append(acc)
+        acc = probe.score(X_test, y_test)
+        accuracies.append(acc)
 
-mean_acc = np.mean(accuracies)
-std_acc = np.std(accuracies)
+    mean_acc = np.mean(accuracies)
+    all_accs[i, j] = mean_acc
+    all_accs[j, i] = mean_acc
 
-print(f'Accuracy over {cfg.n_probe_splits} splits: {mean_acc} +- {std_acc}')
-print(f"Individual accuracies: {accuracies}")
+labels = [f"Stage {i}" for i in range(cfg.num_stages)]
+text = np.where(all_accs == 0, "", np.round(all_accs, 2).astype(str))
+fig = go.Figure(
+    data=go.Heatmap(
+        z=all_accs,
+        x=labels,
+        y=labels,
+        text=text,
+        texttemplate="%{text}",
+        zmin=0.5,
+        zmax=1.0,
+        colorscale="Blues",
+    )
+)
+fig.update_layout(
+    title="Probe cross-validated accuracy",
+    xaxis=dict(tickangle=45),
+    yaxis=dict(autorange="reversed"),
+)
+
+fig.write_image("fig.png")
+fig.write_html("fig.html")
