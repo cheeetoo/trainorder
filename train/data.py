@@ -11,6 +11,13 @@ class SyntheticCVBD:
         self.tokenizer = tokenizer
         self.cfg = cfg
 
+        def ordinal(n):
+            if 11 <= n % 100 <= 13:
+                suffix = "th"
+            else:
+                suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+            return f"{n}{suffix}"
+
         self.templates = [
             "What was the gender of <|{}|>?",
             "When was <|{}|> born?",
@@ -21,7 +28,7 @@ class SyntheticCVBD:
         ]
         self.answer_options = [
             ["male", "female"],
-            [f"{i}th century" for i in range(1, 21)],
+            [f"{ordinal(i)} century" for i in range(1, 21)],
             [f"{i}0s" for i in range(190, 202)],
             ["Europe", "Asia", "North America", "South America", "Africa", "Oceania"],
             ["actor", "writer", "politician", "scientist", "athlete", "musician"],
@@ -85,7 +92,7 @@ class SyntheticCVBD:
                 answers = [random.choice(self.answer_options[i]) for i in choices]
 
                 texts = [
-                    {"text": f"Q: {q}\nA: {a}"} for q, a in zip(questions, answers)
+                    {"text": f"Q: {q}\n A: {a}"} for q, a in zip(questions, answers)
                 ]
                 stage_data.extend(texts)
 

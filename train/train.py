@@ -43,7 +43,6 @@ for i, dataset in enumerate(datasets):
     )
 
     trainer.train()
+    model.save_pretrained(f"{cfg.out_dir}/{i}")
 
-model.save_pretrained(f"{cfg.out_dir}/final_adapter")
-merged = model.merge_and_unload()
-merged.save_pretrained(f"{cfg.out_dir}/final_merged")
+model.save_pretrained(f"{cfg.out_dir}/final")

@@ -10,7 +10,7 @@ import json
 
 cfg = ExperimentConfig()
 
-hf_model = AutoModelForCausalLM.from_pretrained(f"{cfg.out_dir}/final_merged")
+hf_model = AutoModelForCausalLM.from_pretrained(f"{cfg.out_dir}/final")
 model = HookedTransformer.from_pretrained(cfg.model_id, hf_model=hf_model)
 
 with open(f"{cfg.out_dir}/aliases.json") as f:
