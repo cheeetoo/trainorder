@@ -2,6 +2,7 @@ from cfg import ExperimentConfig
 import random
 import os
 import json
+import string
 from datasets import Dataset
 
 
@@ -38,24 +39,16 @@ class SyntheticCVBD:
 
     def _generate_aliases(self) -> list[str]:
         aliases = []
-        vocab_size = self.tokenizer.vocab_size
-        reasonable_range = range(1000, vocab_size - 1000)  # avoid specials etc.
+        chars = string.ascii_lowercase
 
         while len(aliases) < self.cfg.num_entities:
-            token_ids = random.sample(reasonable_range, self.cfg.alias_toks)
-            decoded = self.tokenizer.decode(token_ids)
+            length = random.randint(5, 7) # plausibly 3 toks
+            decoded = ''.join(random.choices(chars, k=length))
+
+            toks = self.tokenizer.encode(decoded, add_special_tokens=False)
 
             # no merging
-            if len(self.tokenizer.encode(decoded, add_special_tokens=False)) != self.cfg.alias_toks:
-                continue
-
-            test_prompt = self.cfg.probe_prompt.format(decoded)
-            baseline_prompt = self.cfg.probe_prompt.format("XX")
-
-            test_tokens = self.tokenizer.encode(test_prompt, add_special_tokens=False)
-            baseline_tokens = self.tokenizer.encode(baseline_prompt, add_special_tokens=False)
-
-            if len(test_tokens) == len(baseline_tokens) + (self.cfg.alias_toks - 1):
+            if len(toks) == self.cfg.alias_toks and decoded not in aliases:
                 aliases.append(decoded)
 
         # extra check in case edge cases to avoid silent errors
