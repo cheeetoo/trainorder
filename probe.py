@@ -8,6 +8,16 @@ from sklearn.model_selection import train_test_split
 
 import json
 
+def get_activations_batched(model, prompts, hook_point, batch_size):
+    all_acts = []
+    for i in range(0, len(prompts), batch_size):
+        batch_prompts = prompts[i:i + batch_size]
+        _, cache = model.run_with_cache(batch_prompts, names_filter=[hook_point])
+        acts = cache[hook_point][:, -1].cpu()
+        all_acts.append(acts)
+        del cache
+    return torch.cat(all_acts, dim=0)
+
 cfg = ExperimentConfig()
 
 hf_model = AutoModelForCausalLM.from_pretrained(f"{cfg.out_dir}/final")
@@ -23,10 +33,8 @@ first_prompts = prompts[0]
 last_prompts = prompts[-1]
 
 with torch.no_grad():
-    _, first_acts_cache = model.run_with_cache(first_prompts, names_filter=[cfg.hook_point])
-    _, last_acts_cache = model.run_with_cache(last_prompts, names_filter=[cfg.hook_point])
-    first_acts = first_acts_cache[cfg.hook_point][:, -1]
-    last_acts = last_acts_cache[cfg.hook_point][:, -1]
+    first_acts = get_activations_batched(model, first_prompts, cfg.hook_point, cfg.batch_size)
+    last_acts = get_activations_batched(model, last_prompts, cfg.hook_point, cfg.batch_size)
 
 accuracies = []
 
