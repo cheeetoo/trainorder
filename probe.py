@@ -10,7 +10,7 @@ from sklearn.model_selection import KFold
 from transformer_lens import HookedTransformer
 from transformers import AutoModelForCausalLM
 
-from train.cfg import ExperimentConfig
+from cfg import ExperimentConfig
 
 
 @torch.no_grad()
