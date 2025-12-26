@@ -4,6 +4,7 @@ from itertools import combinations
 import numpy as np
 import plotly.graph_objects as go
 import torch
+from tqdm import tqdm
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import KFold
 from transformer_lens import HookedTransformer
@@ -34,11 +35,14 @@ with open(f"{cfg.out_dir}/aliases.json") as f:
 
 aliases_by_stage = [aliases[f"stage_{i}"] for i in range(cfg.num_stages)]
 prompts = [[cfg.probe_prompt.format(a) for a in s_a] for s_a in aliases_by_stage]
-acts = [get_acts_batched(model, p, cfg.hook_point, cfg.batch_size) for p in prompts]
+acts = [
+    get_acts_batched(model, p, cfg.hook_point, cfg.batch_size) for p in tqdm(prompts)
+]
 
+probes = {}
 all_accs = np.zeros((cfg.num_stages, cfg.num_stages))
 
-for i, j in combinations(range(cfg.num_stages), 2):
+for i, j in tqdm(list(combinations(range(cfg.num_stages), 2))):
     first_acts = acts[i]
     last_acts = acts[j]
 
@@ -62,8 +66,10 @@ for i, j in combinations(range(cfg.num_stages), 2):
         X_test = np.concat([first_test, last_test], axis=0)
         y_test = np.concat([np.zeros(len(first_test)), np.ones(len(last_test))])
 
-        probe = LogisticRegression(C=0.1)
+        probe = LogisticRegression(C=0.1, max_iter=1000)
         probe.fit(X_train, y_train)
+        probes[f"{(i, j)}_coef"] = probe.coef_
+        probes[f"{(i, j)}_intercept"] = probe.intercept_
 
         acc = probe.score(X_test, y_test)
         accuracies.append(acc)
@@ -71,6 +77,8 @@ for i, j in combinations(range(cfg.num_stages), 2):
     mean_acc = np.mean(accuracies)
     all_accs[i, j] = mean_acc
     all_accs[j, i] = mean_acc
+
+np.savez(f"{cfg.out_dir}/probes.npz", **probes)
 
 labels = [f"Stage {i}" for i in range(cfg.num_stages)]
 text = np.where(all_accs == 0, "", np.round(all_accs, 2).astype(str))
