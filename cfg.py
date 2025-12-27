@@ -29,6 +29,8 @@ class ExperimentConfig:
     n_probe_splits = 5
     probe_prompt = "What does <|{}|> mean?\n A:"
 
+    n_patching_prompts = 25
+
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
