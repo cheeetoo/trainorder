@@ -12,13 +12,6 @@ class SyntheticCVBD:
         self.tokenizer = tokenizer
         self.cfg = cfg
 
-        def ordinal(n):
-            if 11 <= n % 100 <= 13:
-                suffix = "th"
-            else:
-                suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
-            return f"{n}{suffix}"
-
         self.templates = [
             "What was the gender of <|{}|>?",
             "When was <|{}|> born?",
@@ -27,23 +20,55 @@ class SyntheticCVBD:
             "What did <|{}|> do?",
             "What was the nationality of <|{}|>?",
         ]
-        self.answer_options = [
-            ["male", "female"],
-            [f"{ordinal(i)} century" for i in range(1, 21)],
-            [f"{i}0s" for i in range(190, 202)],
-            ["Europe", "Asia", "North America", "South America", "Africa", "Oceania"],
-            ["actor", "writer", "politician", "scientist", "athlete", "musician"],
-            [
-                "France",
-                "USA",
-                "China",
-                "India",
-                "Brazil",
-                "Nigeria",
-                "Japan",
-                "Germany",
-            ],
+
+        self.region_to_nationalities = {
+            "Europe": ["France", "Germany", "Italy", "Spain", "Britain"],
+            "Asia": ["China", "Japan", "India", "Korea"],
+            "North America": ["USA", "Canada", "Mexico"],
+            "South America": ["Brazil", "Argentina", "Chile"],
+            "Africa": ["Nigeria", "Egypt", "South Africa"],
+            "Oceania": ["Australia", "New Zealand"],
+        }
+        self.regions = list(self.region_to_nationalities.keys())
+        self.occupations = [
+            "actor",
+            "writer",
+            "politician",
+            "scientist",
+            "athlete",
+            "musician",
         ]
+
+    def _ordinal(self, n):
+        if 11 <= n % 100 <= 13:
+            suffix = "th"
+        else:
+            suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+        return f"{n}{suffix}"
+
+    def _generate_coherent_entity(self):
+        gender = random.choice(["male", "female"])
+
+        birth_century = random.randint(1, 20)
+        birth_str = f"{self._ordinal(birth_century)} century"
+
+        birth_year_start = (birth_century - 1) * 100
+
+        earliest_death_year = birth_year_start + 20
+        latest_death_year = min(birth_year_start + 100, 2020)
+
+        earliest_decade = (earliest_death_year // 10) * 10
+        latest_decade = (latest_death_year // 10) * 10
+
+        death_decade = random.randrange(earliest_decade, latest_decade + 1, 10)
+        death_str = f"{death_decade}s"
+
+        region = random.choice(self.regions)
+        nationality = random.choice(self.region_to_nationalities[region])
+
+        occupation = random.choice(self.occupations)
+
+        return [gender, birth_str, death_str, region, occupation, nationality]
 
     def _generate_aliases(self) -> list[str]:
         aliases = []
@@ -86,18 +111,15 @@ class SyntheticCVBD:
 
             metadata[f"stage_{stage_idx}"] = stage_aliases
 
-            for entity in stage_aliases:
+            for alias in stage_aliases:
+                entity_facts = self._generate_coherent_entity()
+
                 choices = random.sample(
-                    range(len(self.templates)), self.cfg.pairs_per_entity
+                    list(zip(self.templates, entity_facts)), self.cfg.pairs_per_entity
                 )
-
-                questions = [self.templates[i].format(entity) for i in choices]
-                answers = [random.choice(self.answer_options[i]) for i in choices]
-
-                texts = [
-                    {"text": f"Q: {q}\n A: {a}"} for q, a in zip(questions, answers)
-                ]
-                stage_data.extend(texts)
+                for template, fact in choices:
+                    question = template.format(alias)
+                    stage_data.append(self.cfg.train_format.format(question, fact))
 
             stage_datasets.append(stage_data)
 
@@ -118,7 +140,7 @@ class SyntheticCVBD:
             return self.tokenizer(texts["text"], padding=False)
 
         for stage_dataset in datasets:
-            ds = Dataset.from_list(stage_dataset)
+            ds = Dataset.from_dict({"text": stage_dataset})
             ds = ds.map(tokenize, batched=True, remove_columns=["text"])
             tokenized_datasets.append(ds)
 

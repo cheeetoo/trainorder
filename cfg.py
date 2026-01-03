@@ -12,9 +12,10 @@ class ExperimentConfig:
     out_dir = "out"
 
     seed = 42
-    num_stages = 6
+    num_stages = 2
     num_entities = 16000
     pairs_per_entity = 4
+    train_format = "Q: {}\n A: {}"
 
     alias_toks = 3
 
