@@ -33,6 +33,7 @@ for i, dataset in enumerate(datasets):
         gradient_checkpointing=True,
         seed=cfg.seed,
         data_seed=cfg.seed,
+        torch_compile=True
     )
 
     trainer = Trainer(
