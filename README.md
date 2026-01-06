@@ -1,4 +1,4 @@
-Reproduces fine-tuning and probing experiments from [Krasheninnikov et al. (2025)](https://arxiv.org/abs/2509.14223), achieving 82% probe accuracy.
+Fine-tunes Llama-3.2-1B on sequential datasets and trains a linear probe to classify training stage with 82% accuracy, following [Krasheninnikov et al. (2025)](https://arxiv.org/abs/2509.14223).
 
 In `patching.ipynb`, we use activation patching and resample ablation to identify a minimal circuit (7 MLPs, 1 attention heads) explaining 91% of the probe's signal. The circuit shows that stage-distinguishing information is:
 1. Composed by an early attention head (L0H3)
@@ -40,4 +40,5 @@ Layer 8               │     │     │             │
                                                 │
 Layer 12                                     [PROBE]
 ```
+
 
